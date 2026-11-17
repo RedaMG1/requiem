@@ -1,195 +1,208 @@
 # Requiem — Technical Foundation (M0) Design
 
-Date: 2026-11-16
+Date: 2026-11-17 (revision 2 — replaces the first draft, which targeted a web game built with Babylon.js)
 Status: Draft, awaiting owner approval
 
 ## 1. Intent and why
 
 **Working title:** *Requiem* (repo `requiem`). A codename; the final title may change before release.
 
-An original 3D turn-based RPG, inspired by the *style of combat* of Clair Obscur: Expedition 33 (turn-based actions plus real-time dodge / parry / timed attacks). Setting, characters, story, art and music are original. The story and art direction come later; this document covers only the **technical foundation** every later milestone builds on.
+An original 3D turn-based RPG, inspired by the *style of combat* of Clair Obscur: Expedition 33: turn-based actions combined with real-time dodge, parry and timed attacks. Setting, characters, story, art and music are original.
 
-The owner is a solo developer (experienced programmer, aiming for a DevOps career, guitarist and composer). Budget is $0 for now, with no deadline. The project is also meant to be a showcase of clean engineering and DevOps practice.
+- **Platform:** a native, downloadable **PC game (Windows first)**, eventually sold on Steam. A native mobile version (iOS/Android app) may come later; nothing in M0 may block it.
+- **Visual direction:** **cel-shaded anime** (in the family of Persona and Genshin Impact). Details belong to a separate art direction design.
+- **Hardware stance:** neither the developer nor the players should need an expensive PC.
+- **Game scope context** (designed separately later): an overworld map or hub connecting zones, released in acts; the first real target is Act 1, about 2–3 hours of play.
 
-The game must run **in the browser on desktop and on phones** (iOS Safari and Android Chrome included), in 3D.
+The owner is a solo developer: an experienced programmer aiming for a DevOps career, and a guitarist and composer. Budget is $0 for now, with no deadline. The project is also meant to showcase clean engineering and DevOps practice.
+
+This document covers only the **technical foundation (M0)** every later milestone builds on.
 
 ## 2. Goals, non-goals, anti-goals
 
 ### Goals of M0
-1. A repository with the full toolchain wired: dev server, type checking, lint, format, unit tests, end-to-end tests, build.
-2. A Babylon.js 3D test scene that runs smoothly on desktop and on a mid-range phone.
-3. A Solid UI overlay on top of the canvas, proving the UI ↔ game communication path.
-4. A unified input layer (keyboard, mouse/touch, gamepad) that produces timestamped game actions — the base for parry/dodge timing later.
-5. CI/CD: every pull request is checked and gets a preview deploy; `main` deploys to production on Cloudflare.
-6. Architecture rules enforced by tooling, not by memory.
-7. Project context documented (README, CLAUDE.md, architecture decision records) so future sessions and contributors start informed.
+1. A Unity 6 LTS project (URP) with a pinned version, a clear folder structure, and assembly boundaries that enforce the architecture.
+2. A pure C# core library (no Unity references) with tests that run both inside Unity and with plain `dotnet test`.
+3. A test scene with a placeholder battle layout and quality presets, running smoothly on modest hardware.
+4. An input layer (keyboard, mouse, gamepad) producing timestamped game actions — the base for parry/dodge timing.
+5. A UI Toolkit debug HUD proving the UI → core → scene path.
+6. The private assets repository wired in as a submodule, proven by one placeholder asset that appears in local and CI builds.
+7. CI/CD: every pull request runs code checks, tests and a Windows build; `main` additionally uploads the build to a private itch.io page.
+8. Project context documented (README, CLAUDE.md, setup checklist, architecture decision records).
 
 ### Non-goals (later milestones)
 - Combat rules, turn order, AP, damage, timing judgement (M1).
-- Real art, models, animations, VFX; the asset pipeline beyond a placeholder (later).
-- Music and the audio pipeline beyond a stub (later; owner composes).
-- Story, dialogue, exploration, save system.
-- Backend, accounts, leaderboards, app-store packaging (Capacitor), installable PWA / offline mode.
-- Error monitoring service (Sentry) — added once there is something to monitor.
+- Real art, toon shader, characters, animations, VFX (art direction design).
+- Audio pipeline and the Unity-audio-vs-FMOD decision (audio design).
+- Story, exploration, save system, settings menu, key rebinding UI.
+- Steam release, Mac/Linux/Steam Deck builds, mobile builds.
+- Managing GitHub/itch.io configuration as code with Terraform (milestone **M0.5**, right after M0).
 
 ### Anti-goals (would make M0 a failure even if it "works")
-- A workflow that depends on a GUI editor or manual steps to build or deploy.
-- Combat/game logic coupled to Babylon (must stay testable without a GPU).
-- Babylon imported from the package root (pulls megabytes into the bundle).
-- Mismatched versions across `@babylonjs/*` packages.
-- Secrets, API tokens or private assets committed to the public repo.
-- A scene that runs on desktop but stutters or overheats a mid-range phone.
+- Any build, test or release step that only works by clicking in the Unity editor.
+- Core/game logic that references `UnityEngine` (it must stay testable without Unity).
+- Third-party (Asset Store) assets, the owner's music, or art source files committed to the public repo.
+- Secrets or Unity license files committed anywhere.
+- Unity version drift (the project silently upgraded by opening it in another Unity version).
+- Committing Unity's generated folders (`Library/`, `Temp/`, `Logs/`, `UserSettings/`, generated `.csproj`/`.sln`).
+- A test scene that only runs well on a high-end PC.
 
 ## 3. Constraints
 
-- **Cost:** $0. Only free tiers.
-- **Repo:** public on GitHub. Music, art source files and story material are **not** stored in the repo (they will live in private storage, Cloudflare R2, when they exist).
-- **Platforms:** latest two versions of Chrome, Edge, Firefox, Safari (macOS and iOS), Chrome on Android. Rendering baseline is **WebGL2**; WebGPU is optional and opt-in.
-- **Phone target:** the owner's reference phone is an **iPhone 15 Pro** (iOS Safari). Steady 60 fps in the M0 test scene, landscape orientation. Because this phone is high-end, also check desktop Chrome with 4× CPU throttling as a stand-in for mid-range devices; a real mid-range Android test is added later.
-- **Infrastructure:** one-time account/project setup (GitHub repo settings, Cloudflare project, deploy token) is done **manually** in M0 following a written checklist (`docs/setup.md`). Every build and deploy after that is fully automatic. Managing this setup as code (Terraform) is its own milestone, **M0.5**, right after M0.
-- **Security:** static site served over HTTPS with a strict Content-Security-Policy; no `unsafe-eval`.
+- **Cost:** $0. Unity Personal (free under its revenue threshold), GitHub Free, itch.io (free).
+- **Repos:** public code repo `RedaMG1/requiem` (all rights reserved); private assets repo `RedaMG1/requiem-assets`.
+- **Storage limits:** GitHub Free includes 10 GiB of Git LFS storage and 10 GiB of LFS bandwidth per month, shared across the account. CI must cache LFS files to protect the bandwidth quota.
+- **Target platform:** Windows 10/11, 64-bit.
+- **Player minimum spec target:** GTX 1050-class GPU or recent integrated graphics (Intel Iris Xe / Radeon 680M class), 8 GB RAM, at the Low preset.
+- **Development machine:** the owner's PC (good specs, but nothing may *require* high-end hardware).
+- **Mobile later:** the render pipeline and architecture must not rule out a native mobile build.
 
 ## 4. Approaches considered
 
-### 4.1 Engine — chosen: **Babylon.js 9.x**
+### 4.1 Platform — chosen: **native PC** (previously: web)
+The first draft targeted the browser (Babylon.js) for instant play from a link. The owner changed direction: a "real" PC game, eventually sold on Steam, with a higher graphics ceiling. Native also allows a native mobile app later, with much better performance than mobile web. Trade-off: no instant play from a link (itch.io downloads cover playtesting).
+
+### 4.2 Engine — chosen: **Unity 6 (LTS)**
 | Option | Why not chosen / why chosen |
 |---|---|
-| **Babylon.js** ✅ | Full game engine (animation, audio, physics, GUI, glTF, inspector); written in TypeScript; strict backward-compatibility policy; WebGL2 + WebGPU; works under strict CSP. Best balance of features, stability and phone performance for a solo developer. |
-| PlayCanvas | Very light and mobile-first, but fewer built-in high-end features; its editor is cloud-based (private projects paid). Strong second choice. |
-| Three.js | Smallest core and biggest ecosystem, but a renderer rather than an engine (more code to write ourselves = more bugs), and releases often break APIs. |
-| Godot 4 / Unity 6 web export | 8–10+ MB WebAssembly downloads, iOS memory risk, editor-first workflow, need `wasm-unsafe-eval` in CSP. Poor fit for phone browsers. |
+| **Unity 6** ✅ | Best anime pipeline (VRoid → UniVRM, free toon shaders such as lilToon and Unity-Chan Toon Shader), strong cinematic tools (Timeline, Cinemachine), mature animation, huge asset/tutorial ecosystem, proven PC-plus-mobile path (Genshin Impact). Runs on modest hardware with URP. Downsides: proprietary licence with a pricing controversy in 2023 (reversed), messier scene merges, CI needs licence activation (solved by GameCI). |
+| Godot 4 | Free/open source, very light, cleanest Git workflow. Close second; less mature anime pipeline and cinematic tooling. |
+| Unreal Engine 5 | Best realism (Clair Obscur's engine), MetaHuman. Rejected: needs a strong PC, steep learning curve, heavy CI, and realism was dropped in favour of cel-shaded anime. |
 
-### 4.2 Lint and format — chosen: **ESLint + typescript-eslint (strict, type-checked) + Prettier**
+### 4.3 Visual style (high level) — chosen: **cel-shaded anime**
+Over stylized realism: cheaper to produce solo, runs on modest PCs and later on phones, unifies assets from different sources, ages well. Detailed choices (toon shader, outlines, palette) go to the art direction design.
+
+### 4.4 Asset storage — chosen: **public code repo + private assets repo (Git submodule with Git LFS)**
 | Option | Trade-off |
 |---|---|
-| **ESLint + typescript-eslint + Prettier** ✅ | Most complete type-aware rules (e.g. `no-floating-promises` catches forgotten `await` in async game sequences); enforces import boundaries; huge plugin ecosystem (incl. `eslint-plugin-solid`). Slower than Biome, irrelevant at this size. |
-| Biome | Single fast tool, simpler config, but fewer type-aware rules. Rejected because "fewest bugs" is the priority. |
+| Everything in the public repo | Violates Asset Store licences (no redistribution); publishes the owner's music and art. Rejected. |
+| **Public code + private assets submodule** ✅ | Respects licences, protects creative work, keeps full version history, keeps free CI/security tools for the public code. CI needs a read-only token to fetch the assets. |
+| Assets in Cloudflare R2 synced by script | Custom tooling, fragile with Unity's `.meta` files, history only with bucket versioning. |
+| Everything private | Loses free security scanning, portfolio value, and unlimited CI minutes. |
 
-### 4.3 UI — chosen: **Solid (HTML/CSS overlay) for menus and HUD + Babylon for in-world UI**
+When the 10 GiB LFS quota gets tight, asset storage moves to a cheaper backend (a later DevOps milestone).
+
+### 4.5 UI — chosen: **UI Toolkit for menus and HUD; world-space uGUI or meshes for UI attached to 3D objects**
 | Option | Trade-off |
 |---|---|
-| **Solid + HTML/CSS overlay** ✅ | Fine-grained reactivity: only the changed text/bar updates, no virtual-DOM diffing stealing frame time on phones; ~7 KB; components scale to inventory/skill trees; sharp text, responsive CSS, accessible. Owner knows React, so JSX/components are familiar. |
-| Preact | Equally viable, React API; slightly more runtime work per update. |
-| Vanilla TypeScript | Zero size, but unmaintainable as the RPG UI grows. |
-| Babylon GUI for everything | Blurry text on phones, weaker responsive layout, no accessibility. Kept **only** for UI attached to 3D objects (enemy HP bars, damage numbers, parry rings). |
+| **UI Toolkit** ✅ (menus, HUD) | Layout files plus CSS-like stylesheets — familiar to a web developer; scales to inventories and skill trees; Unity's recommended system for new projects. Less mature for UI attached to 3D objects. |
+| uGUI ✅ (in-world only) | Mature world-space canvases for enemy HP bars and damage numbers; messier for large menu systems. |
 
-### 4.4 Hosting — chosen: **Cloudflare** (static hosting with PR previews; R2 for large assets later)
-| Option | Trade-off |
-|---|---|
-| **Cloudflare** ✅ | Unlimited free static bandwidth, PR preview deploys, custom headers, R2 object storage (10 GB free, no egress fees), commercial use allowed, strong DevOps learning value (DNS, WAF, Workers, Terraform). 25 MB per-file limit (big files go to R2). |
-| Netlify | Good DX, but limited free monthly usage. |
-| Vercel | Free tier forbids commercial use. |
-| GitHub Pages | No custom security headers, no PR previews. |
-
-### 4.5 Repository — chosen: **public code, private assets**
-Public gives free CodeQL, secret scanning, unlimited Actions minutes and portfolio value. Valuable creative material stays out of the repo.
-
-**License:** all rights reserved (no open-source license). The code is visible on GitHub but may not be reused without permission. A `LICENSE` file states this; the owner may switch to an open license later. The README states contributions are not accepted for now.
+### 4.6 Repository visibility and licence
+Public code (free CodeQL, secret scanning, unlimited Actions minutes on standard runners, portfolio value). **All rights reserved:** a `LICENSE` file states that the code is visible but may not be reused without permission. Contributions are not accepted for now.
 
 ## 5. Decided technical design
 
 ### 5.1 Stack
 | Area | Choice |
 |---|---|
-| Runtime | Node.js current LTS, version pinned in `.nvmrc` and `package.json#engines` |
-| Package manager | pnpm (lockfile committed; dependency install scripts blocked by default, allow-listed explicitly) |
-| Language | TypeScript, `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` |
-| Build / dev server | Vite |
-| Engine | `@babylonjs/core` (+ `@babylonjs/loaders`, `@babylonjs/inspector` dev-only), exact pinned version, all `@babylonjs/*` on the same version |
-| UI | Solid (`solid-js`, `vite-plugin-solid`) |
-| Lint / format | ESLint flat config, typescript-eslint `strictTypeChecked` + `stylisticTypeChecked`, `eslint-plugin-solid`; Prettier |
-| Unit tests | Vitest (Babylon `NullEngine` for headless scene tests where needed) |
-| E2E tests | Playwright (desktop + phone viewport projects) |
-| Git hooks | Lefthook: format + lint + typecheck staged files on commit |
+| Engine | Unity 6, latest LTS at setup time, exact version pinned (`ProjectSettings/ProjectVersion.txt`) |
+| Render pipeline | Universal Render Pipeline (URP) |
+| Input | Unity Input System package |
+| UI | UI Toolkit (menus/HUD); uGUI world-space later for in-world UI |
+| Language | C# (Unity's supported language version) |
+| Core library | Pure C# assembly with no engine references, also compiled by an SDK-style `.csproj` targeting `netstandard2.1` so it builds and tests without Unity |
+| Tests | Unity Test Framework (NUnit) for EditMode/PlayMode; plain `dotnet test` (NUnit) for the core library |
+| Code quality | `.editorconfig`, .NET Roslyn analyzers (warnings as errors in the core library), `dotnet format --verify-no-changes` in CI |
+| Git hooks | Lefthook: `dotnet format` on staged `.cs` files |
 | Commits | Conventional Commits |
-| CI/CD | GitHub Actions |
-| Dependency updates | Renovate (Babylon packages grouped into one PR) |
-| Security scanning | CodeQL, GitHub secret scanning + push protection, `pnpm audit` in CI |
-| Hosting | Cloudflare static hosting with PR previews; production on `main` |
+| Version control | Git; Git LFS in the assets repo; Unity set to "Visible Meta Files" and "Force Text" serialization; UnityYAMLMerge documented as the merge tool for scenes and prefabs |
+| CI/CD | GitHub Actions + GameCI (Unity test runner and builder) |
+| Playtest distribution | itch.io (restricted page), uploaded by `butler` from CI |
+| Dependency updates | Renovate for GitHub Actions and NuGet (core test project); Unity packages updated manually on a schedule |
+| Security scanning | CodeQL for C# (no-build mode), GitHub secret scanning with push protection, Dependabot alerts |
+| IDE | Owner's choice (Rider, free for non-commercial use, or Visual Studio Community) |
 
-### 5.2 Source layout and dependency rules
+### 5.2 Repository layout
 ```
-src/
-  main.ts       bootstraps engine, game, UI
-  core/         game loop, clock, event bus, state machines        (no Babylon, no Solid)
-  combat/       (empty in M0) pure combat rules                     (no Babylon, no Solid)
-  input/        unified input → timestamped actions                 (no Babylon, no Solid)
-  render/       Babylon engine, scenes, cameras, debug tools        (may import core)
-  ui/           Solid components (HUD, menus)                       (may import core; never render/)
-  audio/        stub in M0
-  data/         game data (characters, skills, attack timing tracks) — empty/sample in M0
-tests/          unit + e2e
-tools/          scripts (asset/audio pipelines later)
-public/         static files (icons, self-hosted Babylon decoders later)
-docs/adr/       architecture decision records
-docs/superpowers/specs/  design docs
+requiem/                         (public)
+  Assets/
+    _Project/
+      Scripts/
+        Core/          Requiem.Core.asmdef          pure C#: clock, event bus, state machines; later combat rules
+        Input/         Requiem.Input.asmdef         Input System → core actions
+        Presentation/  Requiem.Presentation.asmdef  scene, camera, debug wiring
+        UI/            Requiem.UI.asmdef            UI Toolkit code
+      Scenes/
+      Settings/        URP assets, quality presets
+      UI/              UXML layouts and USS stylesheets
+    Art/               ← Git submodule: requiem-assets (private, LFS) — art, audio, third-party assets, with their .meta files
+  Packages/            manifest.json, packages-lock.json
+  ProjectSettings/
+  Tests/
+    EditMode/  PlayMode/
+  dotnet/
+    Requiem.Core.csproj          compiles Assets/_Project/Scripts/Core/**/*.cs
+    Requiem.Core.Tests.csproj    NUnit tests for the core library
+  docs/  adr/  superpowers/specs/  setup.md
+  .claude/settings.json          declares the Superpowers plugin for sessions on this repo
 ```
-Rules, enforced by ESLint `no-restricted-imports` per folder:
-- `core/`, `combat/`, `input/`, `data/` must not import `@babylonjs/*` or `solid-js`.
-- `ui/` must not import `render/`; UI and rendering talk only through `core/` (event bus / shared state).
-- Babylon is imported by deep module path only (`@babylonjs/core/...`), never from the package root.
 
-### 5.3 M0 test scene
-- Babylon `Engine` on WebGL2 by default; `?renderer=webgpu` URL flag tries WebGPU and falls back to WebGL2.
-- A ground plane, one directional light + ambient/hemispheric light, a camera framing a battle layout: 3 placeholder heroes (capsules) and 1 placeholder enemy, gently idle-animated.
-- Handles resize, device orientation changes, and pauses rendering when the tab is hidden.
-- **Resolution scaling:** on phones, render at a fraction of the device pixel ratio (start at ~0.75) to protect frame rate and battery; adjustable from the debug overlay.
-- Babylon Inspector available in dev builds only (keyboard shortcut), excluded from production bundles.
+**Dependency rules (enforced by assembly definitions, so violations are compile errors):**
+- `Requiem.Core` references nothing and has engine references disabled (`noEngineReferences`). The `dotnet` build of the same files proves it.
+- `Input`, `Presentation` and `UI` may reference `Core`.
+- `UI` and `Presentation` must not reference each other; they communicate only through `Core` (events and shared state).
 
-### 5.4 M0 UI overlay (Solid)
-- Debug panel: FPS, frame time, draw calls, active renderer (WebGL2/WebGPU), resolution scale.
-- One sample interactive control (e.g. "highlight next hero") that sends an event through `core/` and is reflected in the 3D scene — proves the UI → core → render path.
-- Layout works in landscape on phone and desktop; respects phone safe areas (notches).
+The project must still open without the submodule (missing art shows as missing references); only the owner and CI have the assets.
 
-### 5.5 Input layer
-- Normalizes keyboard, pointer/touch and gamepad into game actions: `confirm`, `back`, `parry`, `dodge`, `navigate`.
-- Every action carries a high-resolution timestamp taken at the input event, so later timing judgement does not depend on frame rate.
-- Default bindings: parry = J / Space / a gamepad face button, dodge = K / Shift / another gamepad face button (exact mapping is the builder's call), confirm = Enter / tap.
-- *Builder's call, recorded:* touch in M0 = **temporary on-screen Parry and Dodge buttons** in the debug overlay (bottom corners, thumb-sized, respecting safe areas) plus **tap on the scene = confirm**. No gestures yet; the final touch layout is designed in M1.
-- In M0, actions are shown in the debug overlay (last action + timestamp) to prove it works.
+### 5.3 Test scene
+- URP, a ground plane, a directional light with ambient light, a camera framing a battle layout: 3 placeholder heroes (capsules) and 1 placeholder enemy, gently idle-animated.
+- One placeholder material or texture comes from the private assets submodule, proving the asset path end to end.
+- **Quality presets:** Low (no real-time shadows or post-processing, reduced render scale), Medium, High (shadows, bloom). Selectable from the debug HUD.
+- Target 60 fps with VSync; the scene pauses when the window loses focus (builder's call whether to pause or throttle).
 
-### 5.6 CI/CD pipeline
-On every pull request:
-`install (pnpm, cached) → typecheck → lint → unit tests → build → bundle size check → Playwright smoke (desktop + phone viewport) → preview deploy`
-On push to `main`: same checks, then production deploy.
-Smoke test: the page loads, a canvas renders, no console errors, the overlay is visible, a key press shows up as an action.
+### 5.4 Input layer
+- An Input System actions asset with a `Gameplay` map: `Confirm`, `Back`, `Parry`, `Dodge`, `Navigate`; bindings for keyboard, mouse and gamepad.
+- The input layer converts these into core actions carrying the **Input System event timestamp** (not the frame time), so later timing judgement does not depend on frame rate.
+- Default keyboard bindings: Parry = J / Space, Dodge = K / Shift, Confirm = Enter, Back = Esc. Gamepad mapping is the builder's call.
 
-### 5.7 Performance budget
-- M0 measures a baseline (JS size gzipped, first load time, fps on a phone) and then locks the bundle-size budget at baseline + 10%; CI fails above it.
-- Rule of thumb for later: < ~150 draw calls, < ~200k triangles on screen, compressed textures (KTX2), first download < ~20 MB.
+### 5.5 Debug HUD (UI Toolkit)
+- Shows FPS, frame time, quality preset (with a selector), last input action and its timestamp.
+- One sample control (e.g. "highlight next hero") sends an event through `Core`, and the scene reacts — proving UI → Core → Presentation.
+- Included in Development builds only (compiled out of release builds).
 
-### 5.8 Security
-- Security headers served by the host: strict CSP (`script-src 'self' 'wasm-unsafe-eval'`, `worker-src 'self' blob:`, never `'unsafe-eval'` for JavaScript), HSTS (no preload while on the free host subdomain), `X-Content-Type-Options: nosniff`, `Referrer-Policy`, restrictive `Permissions-Policy` (allow gamepad, fullscreen).
-  - *Builder's call, recorded:* `'wasm-unsafe-eval'` and `blob:` workers are allowed because Babylon's KTX2/mesh decoders (later) run WebAssembly in workers. Arbitrary JavaScript eval stays banned. (Godot/Unity were rejected for download size and iOS memory, not for this directive.)
-  - The Playwright smoke test runs against the built site with the production CSP, so a CSP violation fails CI.
-- No secrets in the repo; deploy credentials live in GitHub Actions secrets.
-- Source maps not served publicly.
+### 5.6 CI/CD
+**On every pull request:**
+1. `core` job (Ubuntu, no Unity): `dotnet format --verify-no-changes`, build the core library with analyzers as errors, `dotnet test`. Must stay fast (a few minutes).
+2. `unity-tests` job: checkout with the private submodule (read-only token) and LFS (LFS objects cached between runs), GameCI test runner for EditMode and PlayMode, `Library/` cached.
+3. `build-windows` job: GameCI builder, `StandaloneWindows64`, Mono scripting backend (IL2CPP evaluated later), build uploaded as a workflow artifact (short retention).
 
-### 5.9 Developer workflow
-- Dev builds include an on-screen console (Eruda, dev-only, excluded from production) so errors can be read directly on the iPhone; Safari Web Inspector via a Mac is optional.
-- `pnpm dev` serves over HTTPS on the local network so a phone on the same Wi-Fi can open it (WebGPU and some APIs require a secure origin).
-- Scripts: `dev`, `build`, `preview`, `typecheck`, `lint`, `format`, `test`, `e2e`.
-- Trunk-based: short-lived branches, pull requests into `main`.
+**On push to `main`:** the same, then `butler push` to a restricted itch.io page (channel `windows-dev`), versioned from the commit.
 
-### 5.10 Documentation delivered in M0
-- `README.md` — what the project is, how to run it, how to test on a phone.
+**Workflow security:** default `permissions: contents: read`; third-party actions pinned to commit SHAs (Renovate keeps them updated); secrets only in GitHub Actions secrets; the assets token is a fine-grained, read-only token scoped to `requiem-assets`. Pull requests from forks get no secrets and run only the `core` job.
+
+**Secrets needed** (created manually, see `docs/setup.md`): Unity Personal licence credentials as required by GameCI, `ASSETS_REPO_TOKEN`, `BUTLER_API_KEY`.
+
+### 5.7 Performance and size
+- M0 records a baseline in the README: frame time at Low/Medium/High on the owner's PC, and Windows build size.
+- The Low preset must stay comfortably within a 60 fps budget on the owner's PC with headroom, as a proxy for the minimum spec; a real low-end test happens before the first public playtest.
+
+### 5.8 Developer workflow
+- Unity Hub with the pinned Unity version; Git for Windows with Git LFS.
+- Clone with `git clone --recurse-submodules`.
+- Short-lived branches, pull requests into `main`, Conventional Commits.
+
+### 5.9 Documentation delivered in M0
+- `README.md` — what the project is, how to open and run it, baselines.
+- `LICENSE` — all rights reserved.
 - `CLAUDE.md` — project context and working rules for AI sessions, including: always present options as a comparison with a recommendation for this project before asking the owner to choose.
-- `docs/adr/` — ADR-001 Babylon.js, ADR-002 ESLint + typescript-eslint, ADR-003 Solid + Babylon in-world UI, ADR-004 Cloudflare, ADR-005 public code / private assets.
-- `.claude/settings.json` — declares the Superpowers plugin marketplace and plugin so new sessions on this repo get it.
+- `docs/setup.md` — the one-time manual setup checklist: create the private assets repo and LFS, create the read-only token, Unity licence secrets, itch.io account and API key, branch protection, enabling security features.
+- `docs/adr/` — ADR-001 Native PC with Unity 6 (supersedes the web/Babylon.js direction), ADR-002 Cel-shaded anime direction, ADR-003 Public code + private assets submodule, ADR-004 UI Toolkit + world-space hybrid, ADR-005 Pure C# core with dual test runners, ADR-006 GitHub Actions + GameCI + itch.io.
+- `.claude/settings.json` — declares the Superpowers plugin marketplace and plugin.
 
 ## 6. Done when (M0 acceptance)
-1. A fresh clone runs with `pnpm install && pnpm dev`; all scripts pass.
-2. The test scene runs at a steady 60 fps on desktop and on the owner's reference phone(s) in landscape — checked manually by the owner using the overlay's FPS readout; the reading is recorded in the README as the baseline.
-3. Overlay shows live stats; the sample control visibly changes the scene; input actions appear with timestamps from keyboard, touch and gamepad.
-4. Breaking an architecture rule (e.g. importing Babylon in `core/`) fails lint.
-5. A pull request runs the full pipeline and posts a working preview link; merging to `main` updates production.
-6. Security headers are present on the deployed site.
-7. README, CLAUDE.md and the five ADRs exist.
+1. A fresh `git clone --recurse-submodules` opens in the pinned Unity version without errors; core tests pass with `dotnet test` and in Unity's Test Runner.
+2. The test scene runs at a steady 60 fps on the owner's PC; Low/Medium/High frame times are recorded in the README.
+3. Keyboard, mouse and gamepad actions appear in the HUD with timestamps; the sample control visibly changes the scene through `Core`.
+4. Adding a `UnityEngine` reference to `Core`, or a `UI` → `Presentation` reference, fails compilation.
+5. A pull request runs all three jobs; the Windows build artifact downloads and runs on Windows.
+6. A merge to `main` updates the restricted itch.io page.
+7. The placeholder asset from the private submodule appears in local and CI builds; the public repo contains no third-party or private assets.
+8. README, LICENSE, CLAUDE.md, setup checklist and the six ADRs exist.
 
 ## 7. Left to the builder
-- Exact versions (latest stable at setup time, then pinned).
-- Exact folder file names inside each module, event bus implementation details.
-- Gamepad button mapping details, debug overlay styling.
-- Whether to use Cloudflare Pages or Workers static assets, as long as PR previews and custom headers work.
-- *Recorded:* production uses the free Cloudflare subdomain (`*.pages.dev` / `*.workers.dev`); a custom domain costs money and waits until the budget changes.
-- Exact CSP directives beyond the rules above.
+- Exact Unity, package and tool versions (latest stable at setup, then pinned).
+- File names inside each module; the event bus implementation.
+- Gamepad mapping; HUD styling; exact quality preset values.
+- CI caching details and job structure, as long as the behaviour above holds.
+- itch.io page details (title, restricted access settings).
