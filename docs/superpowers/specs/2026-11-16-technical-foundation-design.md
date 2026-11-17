@@ -123,14 +123,16 @@ requiem/                         (public)
         Input/         Requiem.Input.asmdef         Input System → core actions
         Presentation/  Requiem.Presentation.asmdef  scene, camera, debug wiring
         UI/            Requiem.UI.asmdef            UI Toolkit code
+        App/           Requiem.App.asmdef           composition root: creates Core services and wires Input, Presentation and UI together
       Scenes/
       Settings/        URP assets, quality presets
       UI/              UXML layouts and USS stylesheets
+      Tests/
+        EditMode/      Requiem.Tests.EditMode.asmdef
+        PlayMode/      Requiem.Tests.PlayMode.asmdef
     Art/               ← Git submodule: requiem-assets (private, LFS) — art, audio, third-party assets, with their .meta files
   Packages/            manifest.json, packages-lock.json
   ProjectSettings/
-  Tests/
-    EditMode/  PlayMode/
   dotnet/
     Requiem.Core.csproj          compiles Assets/_Project/Scripts/Core/**/*.cs
     Requiem.Core.Tests.csproj    NUnit tests for the core library
@@ -142,6 +144,8 @@ requiem/                         (public)
 - `Requiem.Core` references nothing and has engine references disabled (`noEngineReferences`). The `dotnet` build of the same files proves it.
 - `Input`, `Presentation` and `UI` may reference `Core`.
 - `UI` and `Presentation` must not reference each other; they communicate only through `Core` (events and shared state).
+- `App` is the only assembly that references all of them; it builds the object graph at startup (composition root). *Builder's call, recorded.*
+- Unity tests live under `Assets/` (Unity only compiles test assemblies inside `Assets/`). *Builder's call, recorded.*
 
 The project must still open without the submodule (missing art shows as missing references); only the owner and CI have the assets.
 
@@ -167,7 +171,7 @@ The project must still open without the submodule (missing art shows as missing 
 2. `unity-tests` job: checkout with the private submodule (read-only token) and LFS (LFS objects cached between runs), GameCI test runner for EditMode and PlayMode, `Library/` cached.
 3. `build-windows` job: GameCI builder, `StandaloneWindows64`, Mono scripting backend (IL2CPP evaluated later), build uploaded as a workflow artifact (short retention).
 
-**On push to `main`:** the same, then `butler push` to a restricted itch.io page (channel `windows-dev`), versioned from the commit.
+**On push to `main`:** the same, then `butler push` to a restricted itch.io page (channel `windows-dev`), versioned from the commit. *Builder's call, recorded:* this channel gets a Development build (debug HUD included), since it is for private playtests; a release channel comes later.
 
 **Workflow security:** default `permissions: contents: read`; third-party actions pinned to commit SHAs (Renovate keeps them updated); secrets only in GitHub Actions secrets; the assets token is a fine-grained, read-only token scoped to `requiem-assets`. Pull requests from forks get no secrets and run only the `core` job.
 
@@ -175,6 +179,7 @@ The project must still open without the submodule (missing art shows as missing 
 
 ### 5.7 Performance and size
 - M0 records a baseline in the README: frame time at Low/Medium/High on the owner's PC, and Windows build size.
+- *Builder's call, recorded:* frame times are measured with VSync off (a benchmark toggle in the debug HUD), using CPU and GPU frame timings, so the numbers show real headroom rather than a capped 60 fps.
 - The Low preset must stay comfortably within a 60 fps budget on the owner's PC with headroom, as a proxy for the minimum spec; a real low-end test happens before the first public playtest.
 
 ### 5.8 Developer workflow
