@@ -1,6 +1,6 @@
 # Requiem M0 — Technical Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use **superpowers:executing-plans** to implement this plan task-by-task (the owner chose native execution to minimise token use; one whole-branch review at the end). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stand up the Requiem Unity 6 project, its pure C# core, input layer, placeholder battle scene, debug HUD, private-asset wiring and split public/private CI/CD, so every later milestone builds on a tested, automated foundation.
 
