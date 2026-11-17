@@ -11,7 +11,7 @@ An original 3D turn-based RPG, inspired by the *style of combat* of Clair Obscur
 
 - **Platform:** a native, downloadable **PC game (Windows first)**, eventually sold on Steam. A native mobile version (iOS/Android app) may come later; nothing in M0 may block it.
 - **Visual direction:** **cel-shaded anime** (in the family of Persona and Genshin Impact). Details belong to a separate art direction design.
-- **Hardware stance:** neither the developer nor the players should need an expensive PC.
+- **Hardware stance — scalable graphics:** the game must *look great* on strong PCs and still *run well* on modest ones. High-end visuals are offered as an option (High/Ultra presets), never required. Neither the developer nor the players should need an expensive PC.
 - **Game scope context** (designed separately later): an overworld map or hub connecting zones, released in acts; the first real target is Act 1, about 2–3 hours of play.
 
 The owner is a solo developer: an experienced programmer aiming for a DevOps career, and a guitarist and composer. Budget is $0 for now, with no deadline. The project is also meant to showcase clean engineering and DevOps practice.
@@ -70,6 +70,8 @@ The first draft targeted the browser (Babylon.js) for instant play from a link. 
 | Unreal Engine 5 | Best realism (Clair Obscur's engine), MetaHuman. Rejected: needs a strong PC, steep learning curve, heavy CI, and realism was dropped in favour of cel-shaded anime. |
 
 ### 4.3 Visual style (high level) — chosen: **cel-shaded anime**
+URP is kept over Unity's HDRP for this style: the anime toon shaders and the future mobile path target URP, and URP's top presets (shadows, ambient occlusion, bloom, depth of field, upscaling) give a high-end look for cel-shading. HDRP would add a higher realism ceiling (e.g. ray tracing) that this style does not need, at the cost of excluding modest PCs and phones.
+
 Over stylized realism: cheaper to produce solo, runs on modest PCs and later on phones, unifies assets from different sources, ages well. Detailed choices (toon shader, outlines, palette) go to the art direction design.
 
 ### 4.4 Asset storage — chosen: **public code repo + private assets repo (Git submodule with Git LFS)**
@@ -166,7 +168,12 @@ The project must still open without the submodule (missing art shows as missing 
 ### 5.3 Test scene
 - URP, a ground plane, a directional light with ambient light, a camera framing a battle layout: 3 placeholder heroes (capsules) and 1 placeholder enemy, gently idle-animated.
 - One placeholder material or texture comes from the private assets submodule, proving the asset path end to end.
-- **Quality presets:** Low (no real-time shadows or post-processing, reduced render scale), Medium, High (shadows, bloom). Selectable from the debug HUD.
+- **Quality presets** (the scaling system later art builds on), selectable from the debug HUD:
+  - **Low** — minimum spec (GTX 1050-class / integrated): no or simple real-time shadows, no post-processing, reduced render scale with upscaling.
+  - **Medium** — mainstream (GTX 1660-class): shadows, light post-processing.
+  - **High** — RTX 2060/3060-class: soft shadows, ambient occlusion, bloom, depth of field.
+  - **Ultra** — strong PCs: highest shadow resolution and distance, render scale at or above native, richer post-processing; also supports high refresh rates.
+  - In M0 the presets differ only in these engine settings on the placeholder scene; real art adds texture and effect tiers later.
 - Target 60 fps with VSync; the scene pauses when the window loses focus (builder's call whether to pause or throttle).
 
 ### 5.4 Input layer
