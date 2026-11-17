@@ -1,7 +1,7 @@
 # Requiem — Technical Foundation (M0) Design
 
 Date: 2026-11-17 (revision 2 — replaces the first draft, which targeted a web game built with Babylon.js)
-Status: Draft, awaiting owner approval
+Status: Approved by owner on 2026-11-17
 
 ## 1. Intent and why
 
